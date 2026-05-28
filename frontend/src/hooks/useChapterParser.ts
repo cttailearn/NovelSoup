@@ -91,6 +91,30 @@ export function useChapterParser() {
     setRules((prev) => prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
   }, []);
 
+  const addRule = useCallback(() => {
+    const newId = `custom_${Date.now()}`;
+    setRules((prev) => [
+      ...prev,
+      {
+        id: newId,
+        name: "新规则",
+        pattern: "^(.+)$",
+        example: "输入示例",
+        enabled: true,
+        editable: true,
+      },
+    ]);
+    return newId;
+  }, []);
+
+  const updateRule = useCallback((id: string, updates: Partial<ChapterParseRule>) => {
+    setRules((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  }, []);
+
+  const deleteRule = useCallback((id: string) => {
+    setRules((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   const updateChapterTitle = useCallback((index: number, newTitle: string) => {
     setParsedChapters((prev) => prev.map((c, i) => (i === index ? { ...c, title: newTitle } : c)));
   }, []);
@@ -116,6 +140,9 @@ export function useChapterParser() {
     parsedChapters,
     parseChapters,
     toggleRule,
+    addRule,
+    updateRule,
+    deleteRule,
     updateChapterTitle,
     removeChapter,
     reset,

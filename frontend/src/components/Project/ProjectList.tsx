@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import type { Project } from "../../types";
-import { BookOpen, Plus, Clock } from "lucide-react";
+import { BookOpen, Plus, Clock, Trash2 } from "lucide-react";
 import { ImportNovel } from "./ImportNovel";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { Input, Textarea } from "../ui/Input";
 import { EmptyState } from "../ui/EmptyState";
 import { CardSkeleton } from "../ui/LoadingSkeleton";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 interface Props {
   onSelect: (project: Project) => void;
@@ -15,11 +15,9 @@ interface Props {
 export function ProjectList({ onSelect }: Props) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [style, setStyle] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -35,32 +33,33 @@ export function ProjectList({ onSelect }: Props) {
       .catch(() => setLoading(false));
   };
 
-  const handleCreate = async () => {
-    if (!title.trim()) return;
-    const res = await fetch("/api/v1/projects/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), description: description.trim(), style: style.trim() }),
-    });
-    const project = await res.json();
-    setProjects((prev) => [project, ...prev]);
-    setShowCreate(false);
-    setTitle("");
-    setDescription("");
-    setStyle("");
-    onSelect(project);
-  };
-
   const handleImportComplete = (projectId: string) => {
     setShowImport(false);
     fetchProjects();
-    const project = projects.find((p) => p.id === projectId);
-    if (project) {
-      onSelect(project);
-    }
+    setTimeout(() => {
+      setProjects((currentProjects) => {
+        const project = currentProjects.find((p) => p.id === projectId);
+        if (project) {
+          onSelect(project);
+        }
+        return currentProjects;
+      });
+    }, 100);
   };
 
-  const styles = ["网文风", "严肃文学", "轻小说", "武侠", "科幻", "悬疑"];
+  const handleDeleteProject = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${deleteTarget.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      }
+    } finally {
+      setDeleteTarget(null);
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -94,63 +93,17 @@ export function ProjectList({ onSelect }: Props) {
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-content-primary">我的小说</h2>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setShowImport(true)}>
-              <Plus size={16} />
-              导入小说
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setShowCreate(true)}>
-              <Plus size={16} />
-              新建空白项目
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setShowImport(true)}>
+            <Plus size={16} />
+            导入小说
+          </Button>
         </div>
-
-        {showCreate && (
-          <div className="mb-6 p-6 bg-surface-elevated border border-border rounded-xl">
-            <h3 className="text-sm font-semibold text-content-primary mb-4">创建新小说项目</h3>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="小说名称"
-              className="mb-3"
-            />
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="简介（可选）"
-              className="mb-3"
-            />
-            <div className="mb-3">
-              <span className="text-xs text-content-muted mb-1 block">写作风格</span>
-              <div className="flex flex-wrap gap-2">
-                {styles.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStyle(s === style ? "" : s)}
-                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                      s === style
-                        ? "border-brand-600 bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400"
-                        : "border-border text-content-muted hover:border-content-muted"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreate} disabled={!title.trim()}>创建</Button>
-              <Button size="sm" variant="secondary" onClick={() => setShowCreate(false)}>取消</Button>
-            </div>
-          </div>
-        )}
 
         {projects.length === 0 ? (
           <EmptyState
             icon={<BookOpen size={48} />}
             title="还没有小说项目"
-            description="点击上方按钮创建或导入"
+            description="点击上方按钮导入或创建小说项目"
           />
         ) : (
           <div className="grid gap-3">
@@ -158,7 +111,7 @@ export function ProjectList({ onSelect }: Props) {
               <button
                 key={p.id}
                 onClick={() => onSelect(p)}
-                className="text-left p-5 bg-surface-elevated border border-border hover:border-brand-600/30 rounded-xl transition-all hover:bg-surface-hover"
+                className="text-left p-5 bg-surface-elevated border border-border hover:border-brand-600/30 rounded-xl transition-all hover:bg-surface-hover group"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -175,6 +128,16 @@ export function ProjectList({ onSelect }: Props) {
                       </span>
                     </div>
                   </div>
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                    className="p-2 rounded-lg text-content-muted hover:text-error hover:bg-error-bg/50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    title="删除项目"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setDeleteTarget(p); }}}
+                  >
+                    <Trash2 size={16} />
+                  </span>
                 </div>
               </button>
             ))}
@@ -188,6 +151,15 @@ export function ProjectList({ onSelect }: Props) {
           onCancel={() => setShowImport(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteProject}
+        title="删除项目"
+        message={`确定要删除"${deleteTarget?.title}"吗？此操作不可恢复，所有章节和人物数据都将被删除。`}
+        loading={deleting}
+      />
     </div>
   );
 }

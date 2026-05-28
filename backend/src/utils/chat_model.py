@@ -13,17 +13,21 @@ def create_chat_model(
     streaming: bool = True,
     temperature: float = 0.7,
 ) -> BaseChatModel:
-    api_key = settings.llm_api_key
-    if not api_key:
-        raise ValueError("LLM_API_KEY not configured")
+    api_key, base_url, default_model = settings.get_active_llm_config()
 
-    base_url = settings.llm_base_url
-    model = model_name or settings.llm_model
+    if not api_key:
+        raise ValueError("No LLM API Key configured. Please check your .env file.")
+
+    model = model_name or default_model
+
+    base_url_formatted = base_url.rstrip("/")
+    if not base_url_formatted.endswith("/v1"):
+        base_url_formatted += "/v1"
 
     return ChatOpenAI(
         model=model,
         api_key=api_key,
-        base_url=base_url.rstrip("/") + "/v1" if not base_url.endswith("/v1") else base_url,
+        base_url=base_url_formatted,
         streaming=streaming,
         temperature=temperature,
     )
@@ -34,7 +38,7 @@ def create_decision_model() -> BaseChatModel:
 
 
 def create_execution_model() -> BaseChatModel:
-    return create_chat_model(streaming=True, temperature=0.7)
+    return create_chat_model(streaming=False, temperature=0.7)
 
 
 def create_supervision_model() -> BaseChatModel:

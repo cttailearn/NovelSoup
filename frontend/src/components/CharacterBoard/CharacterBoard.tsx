@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Character } from "../../types";
-import { Plus, Trash2, Edit3, X, Save } from "lucide-react";
+import { Plus, Trash2, Edit3, X, Save, RefreshCw } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input, Textarea } from "../ui/Input";
 import { EmptyState } from "../ui/EmptyState";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { CharacterExtractPanel } from "./CharacterExtractPanel";
 
 interface Props {
   projectId: string;
@@ -16,6 +17,7 @@ export function CharacterBoard({ projectId }: Props) {
   const [editing, setEditing] = useState<Character | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
+  const [showExtractPanel, setShowExtractPanel] = useState(false);
 
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -130,16 +132,26 @@ export function CharacterBoard({ projectId }: Props) {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-content-primary">人物管理</h2>
-        <Button
-          size="sm"
-          onClick={() => {
-            resetForm();
-            setCreating(true);
-          }}
-        >
-          <Plus size={14} />
-          添加人物
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowExtractPanel(true)}
+          >
+            <RefreshCw size={14} />
+            AI 提取
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              resetForm();
+              setCreating(true);
+            }}
+          >
+            <Plus size={14} />
+            添加人物
+          </Button>
+        </div>
       </div>
 
       {creating && (
@@ -253,6 +265,14 @@ export function CharacterBoard({ projectId }: Props) {
         title="删除人物"
         message={`确定要删除「${deleteTarget?.name}」吗？此操作不可撤销。`}
       />
+
+      {showExtractPanel && (
+        <CharacterExtractPanel
+          projectId={projectId}
+          onClose={() => setShowExtractPanel(false)}
+          onRefresh={loadCharacters}
+        />
+      )}
     </div>
   );
 }

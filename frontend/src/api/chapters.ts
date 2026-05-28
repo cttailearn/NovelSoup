@@ -1,5 +1,5 @@
 import { request } from './client';
-import type { Chapter } from '../types';
+import type { Chapter, ChapterParseRule } from '../types';
 
 export const chaptersApi = {
   list: (projectId: string) =>
@@ -22,5 +22,23 @@ export const chaptersApi = {
   delete: (id: string) =>
     request<{ success: boolean }>(`/v1/chapters/${id}`, {
       method: 'DELETE',
+    }),
+
+  getRules: (projectId: string) =>
+    request<{ rules: ChapterParseRule[] }>(`/v1/chapters/rules/${projectId}`),
+
+  saveRules: (projectId: string, rules: ChapterParseRule[]) =>
+    request<{ success: boolean }>(`/v1/chapters/rules/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules }),
+    }),
+
+  reparse: (projectId: string, content: string) =>
+    request<{
+      chapters: { title: string; content: string; word_count: number }[];
+      rules: { pattern: string; name: string; enabled: boolean }[];
+    }>(`/v1/chapters/reparse/${projectId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
     }),
 };

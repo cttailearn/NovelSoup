@@ -167,6 +167,7 @@ export interface ChapterParseRule {
   pattern: string;
   example: string;
   enabled: boolean;
+  editable?: boolean;
 }
 
 export interface ParsedChapter {
@@ -179,44 +180,145 @@ export interface ParsedChapter {
 export const DEFAULT_PARSE_RULES: ChapterParseRule[] = [
   {
     id: "1",
-    name: "第X章",
+    name: "第X章（中文）",
     pattern: "^(第[一二三四五六七八九十百千零\\d]+章)\\s*",
     example: "第1章 开始的序幕",
     enabled: true,
   },
   {
     id: "2",
-    name: "第X回",
+    name: "第X回（古风）",
     pattern: "^(第[一二三四五六七八九十百千零\\d]+回)\\s*",
     example: "第一回 梦开始的地方",
     enabled: true,
   },
   {
     id: "3",
-    name: "Chapter X",
+    name: "Chapter X（英文）",
     pattern: "^(Chapter\\s+\\d+)\\s*[:\\.\\-]?",
     example: "Chapter 1: Introduction",
     enabled: true,
   },
   {
     id: "4",
-    name: "Chapter X (英)",
+    name: "Chapter X 英文序数词",
     pattern: "^(Chapter\\s+[A-Za-z]+\\s+\\d+)\\s*[:\\.\\-]?",
     example: "Chapter One 开始的序幕",
     enabled: false,
   },
   {
     id: "5",
-    name: "卷X-章节",
+    name: "卷X-章节（卷册）",
     pattern: "^(卷[一二三四五六七八九十百千零\\d]+[-－]\\s*[第篇部][^\\n]+)\\s*",
     example: "卷一-第一章 序幕",
     enabled: false,
   },
   {
     id: "6",
-    name: "XX_XX (下划线)",
+    name: "XX_XX（下划线）",
     pattern: "^([A-Z][A-Za-z\\s]+[_－][^\\n]+)\\s*",
     example: "Chapter_1_The_Beginning",
+    enabled: false,
+  },
+  {
+    id: "7",
+    name: "第X节",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+节)\\s*",
+    example: "第一节 序章",
+    enabled: false,
+  },
+  {
+    id: "8",
+    name: "X.X.（数字编号）",
+    pattern: "^(\\d+\\.\\d+[\\.\\s].*)$",
+    example: "1.1 开篇",
+    enabled: false,
+  },
+  {
+    id: "9",
+    name: "X-（短横线）",
+    pattern: "^(\\d+[-－][^\\n]+)\\s*",
+    example: "1-第一章 开篇",
+    enabled: false,
+  },
+  {
+    id: "10",
+    name: "【X】",
+    pattern: "^【([^】]+)】\\s*",
+    example: "【第一章】开篇",
+    enabled: false,
+  },
+  {
+    id: "11",
+    name: "（X）括号章节",
+    pattern: "^（([一二三四五六七八九十百千零\\d]+)）\\s*",
+    example: "（第一章）开篇",
+    enabled: false,
+  },
+  {
+    id: "12",
+    name: "第一部分",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+[部分篇部])",
+    example: "第一部分 序幕",
+    enabled: false,
+  },
+];
+
+export const PRESET_PARSE_RULES: ChapterParseRule[] = [
+  {
+    id: "p1",
+    name: "网文小说",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+章)[\\s\\S]*?$",
+    example: "第1章 逆天改命",
+    enabled: true,
+  },
+  {
+    id: "p2",
+    name: "传统文学",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+回)\\s*",
+    example: "第一回 梦开始的地方",
+    enabled: true,
+  },
+  {
+    id: "p3",
+    name: "英文小说",
+    pattern: "^(Chapter\\s+\\d+)[:\\.\\-]?\\s*",
+    example: "Chapter 1: The Beginning",
+    enabled: true,
+  },
+  {
+    id: "p4",
+    name: "轻小说",
+    pattern: "^(Episode\\s+\\d+)",
+    example: "Episode 1 新的开始",
+    enabled: false,
+  },
+  {
+    id: "p5",
+    name: "古籍章回体",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+回)\\s+《?[^》]+》?",
+    example: "第一回 石头记",
+    enabled: false,
+  },
+  {
+    id: "p6",
+    name: "现代文学",
+    pattern: "^(\\d+\\.\\s+.+)$",
+    example: "1. 黎明的曙光",
+    enabled: false,
+  },
+  {
+    id: "p7",
+    name: "日文小说",
+    pattern: "^(第[一二三四五六七八九十百千零\\d]+幕)\\s*",
+    example: "第一幕 序幕",
+    enabled: false,
+  },
+  {
+    id: "p8",
+    name: "通用章节",
+    pattern: "^(.+)$",
+    example: "任何以文字开头的行",
     enabled: false,
   },
 ];

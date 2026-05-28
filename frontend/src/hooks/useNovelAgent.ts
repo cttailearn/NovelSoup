@@ -225,11 +225,14 @@ export function useNovelAgent({ projectId, wsUrl }: UseNovelAgentOptions) {
   };
 
   useEffect(() => {
+    if (!projectId) return;
     connect();
     return () => {
-      disconnect();
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
     };
-  }, [connect, disconnect]);
+  }, [projectId]);
 
   const sendMessage = useCallback(
     (text: string, chapterId?: string, selectedText?: string, action?: string) => {

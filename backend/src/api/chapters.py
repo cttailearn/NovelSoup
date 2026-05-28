@@ -7,7 +7,7 @@ import uuid
 import json
 import re
 
-from ..models import Chapter, Project
+from ..models import Chapter, Project, ProjectParseRule
 from ..schemas import ChapterCreate, ChapterUpdate, ChapterResponse
 from ..utils.database import get_db
 
@@ -96,10 +96,18 @@ async def delete_chapter(chapter_id: str, db: AsyncSession = Depends(get_db)):
 
 
 PARSE_RULES = [
-    {"pattern": r"^(第[一二三四五六七八九十百千零\d]+章)\s*", "name": "第X章"},
-    {"pattern": r"^(第[一二三四五六七八九十百千零\d]+回)\s*", "name": "第X回"},
-    {"pattern": r"^(Chapter\s+\d+)\s*[:\.\-]?", "name": "Chapter X"},
-    {"pattern": r"^(卷[一二三四五六七八九十百千零\d]+[-－]\s*[第篇部][^\n]+)\s*", "name": "卷X-章节"},
+    {"id": "1", "pattern": r"^(第[一二三四五六七八九十百千零\d]+章)\s*", "name": "第X章（中文）", "example": "第1章 开始的序幕"},
+    {"id": "2", "pattern": r"^(第[一二三四五六七八九十百千零\d]+回)\s*", "name": "第X回（古风）", "example": "第一回 梦开始的地方"},
+    {"id": "3", "pattern": r"^(Chapter\s+\d+)\s*[:\.\-]?", "name": "Chapter X（英文）", "example": "Chapter 1: Introduction"},
+    {"id": "4", "pattern": r"^(Chapter\s+[A-Za-z]+\s+\d+)\s*[:\.\-]?", "name": "Chapter X 英文序数词", "example": "Chapter One 开始的序幕"},
+    {"id": "5", "pattern": r"^(卷[一二三四五六七八九十百千零\d]+[-－]\s*[第篇部][^\n]+)\s*", "name": "卷X-章节（卷册）", "example": "卷一-第一章 序幕"},
+    {"id": "6", "pattern": r"^([A-Z][A-Za-z\s]+[_-][^\n]+)\s*", "name": "XX_XX（下划线）", "example": "Chapter_1_The_Beginning"},
+    {"id": "7", "pattern": r"^(第[一二三四五六七八九十百千零\d]+节)\s*", "name": "第X节", "example": "第一节 序章"},
+    {"id": "8", "pattern": r"^(\d+\.\d+[\.\s].*)$", "name": "X.X.（数字编号）", "example": "1.1 开篇"},
+    {"id": "9", "pattern": r"^(\d+[-－][^\n]+)\s*", "name": "X-（短横线）", "example": "1-第一章 开篇"},
+    {"id": "10", "pattern": r"^【([^】]+)】\s*", "name": "【X】", "example": "【第一章】开篇"},
+    {"id": "11", "pattern": r"^（([一二三四五六七八九十百千零\d]+)）\s*", "name": "（X）括号章节", "example": "（第一章）开篇"},
+    {"id": "12", "pattern": r"^(第[一二三四五六七八九十百千零\d]+[部分篇部])", "name": "第一部分", "example": "第一部分 序幕"},
 ]
 
 
@@ -241,3 +249,187 @@ async def batch_create_chapters(
         await db.refresh(chapter)
 
     return {"chapters": chapters}
+
+
+class ReParseRequest(BaseModel):
+    content: str
+
+
+def parse_chapters_with_rules(text: str, rules: list[dict]) -> list[dict]:
+    chapters = []
+    lines = text.split("\n")
+    current_title = None
+    current_content_lines = []
+
+    for line in lines:
+        matched = False
+        for rule in rules:
+            if not rule.get("enabled", True):
+                continue
+            try:
+                match = re.match(rule["pattern"], line)
+                if match:
+                    if current_title is not None:
+                        content = "\n".join(current_content_lines).strip()
+                        if content:
+                            chapters.append({
+                                "title": current_title,
+                                "content": content,
+                            })
+                    current_title = match.group(1)
+                    current_content_lines = []
+                    rest = line[match.end():].strip()
+                    if rest:
+                        current_content_lines.append(rest)
+                    matched = True
+                    break
+            except re.error:
+                continue
+
+        if not matched:
+            current_content_lines.append(line)
+
+    if current_title is not None:
+        content = "\n".join(current_content_lines).strip()
+        if content:
+            chapters.append({
+                "title": current_title,
+                "content": content,
+            })
+
+    if not chapters and text.strip():
+        chapters.append({
+            "title": "全文",
+            "content": text.strip(),
+        })
+
+    return chapters
+
+
+@router.post("/reparse/{project_id}")
+async def reparse_chapters(
+    project_id: str,
+    data: ReParseRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    rules_result = await db.execute(
+        select(ProjectParseRule)
+        .where(ProjectParseRule.project_id == project_id)
+        .order_by(ProjectParseRule.sort_order)
+    )
+    db_rules = list(rules_result.scalars().all())
+
+    if db_rules:
+        rules = [
+            {
+                "pattern": r.pattern,
+                "name": r.name,
+                "enabled": r.enabled,
+            }
+            for r in db_rules
+        ]
+    else:
+        rules = PARSE_RULES
+
+    parsed = parse_chapters_with_rules(data.content, rules)
+
+    if not parsed:
+        raise HTTPException(status_code=400, detail="No chapters parsed from content")
+
+    return {
+        "chapters": [
+            {
+                "title": p["title"],
+                "content": p["content"],
+                "word_count": len(p["content"]),
+            }
+            for p in parsed
+        ],
+        "rules": rules,
+    }
+
+
+class RuleItem(BaseModel):
+    name: str
+    pattern: str
+    example: str = ""
+    enabled: bool = True
+
+
+class SaveRulesRequest(BaseModel):
+    rules: list[RuleItem]
+
+
+@router.get("/rules/{project_id}")
+async def get_project_rules(project_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProjectParseRule)
+        .where(ProjectParseRule.project_id == project_id)
+        .order_by(ProjectParseRule.sort_order)
+    )
+    rules = result.scalars().all()
+
+    if not rules:
+        return {"rules": PARSE_RULES}
+
+    return {
+        "rules": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "pattern": r.pattern,
+                "example": r.example or "",
+                "enabled": r.enabled,
+            }
+            for r in rules
+        ]
+    }
+
+
+@router.put("/rules/{project_id}")
+async def save_project_rules(
+    project_id: str,
+    data: SaveRulesRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    await db.execute(
+        select(ProjectParseRule)
+        .where(ProjectParseRule.project_id == project_id)
+    ).scalars().all()
+
+    existing_result = await db.execute(
+        select(ProjectParseRule)
+        .where(ProjectParseRule.project_id == project_id)
+    )
+    existing_rules = list(existing_result.scalars().all())
+    for r in existing_rules:
+        await db.delete(r)
+
+    now = int(datetime.now().timestamp() * 1000)
+    for i, rule_data in enumerate(data.rules):
+        rule = ProjectParseRule(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            name=rule_data.name,
+            pattern=rule_data.pattern,
+            example=rule_data.example,
+            enabled=rule_data.enabled,
+            sort_order=i,
+            create_time=now,
+            update_time=now,
+        )
+        db.add(rule)
+
+    await db.commit()
+
+    return {"success": True}

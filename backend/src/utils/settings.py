@@ -9,6 +9,18 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o"
+
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_model: str = "deepseek-chat"
+
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = "https://api.minimaxi.com/anthropic"
+    anthropic_model: str = "MiniMax-M2.7"
+
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o"
@@ -24,6 +36,17 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",")]
+
+    def get_active_llm_config(self) -> tuple[str, str, str]:
+        if self.anthropic_api_key:
+            return self.anthropic_api_key, self.anthropic_base_url, self.anthropic_model
+        if self.deepseek_api_key:
+            return self.deepseek_api_key, self.deepseek_base_url, self.deepseek_model
+        if self.openai_api_key:
+            return self.openai_api_key, self.openai_base_url, self.openai_model
+        if self.llm_api_key:
+            return self.llm_api_key, self.llm_base_url, self.llm_model
+        return self.llm_api_key, self.llm_base_url, self.llm_model
 
 
 settings = Settings()

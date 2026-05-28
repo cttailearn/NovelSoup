@@ -1,8 +1,10 @@
 import { useState, useRef } from "react";
-import { Upload, FileText, X, Check, AlertCircle, Settings, BookOpen } from "lucide-react";
+import { Upload, FileText, X, Check, AlertCircle, Settings, BookOpen, Plus, Pencil, Trash2, Save, ChevronDown } from "lucide-react";
 import { useChapterParser } from "../../hooks/useChapterParser";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
+import type { ChapterParseRule } from "../../types";
+import { PRESET_PARSE_RULES } from "../../types";
 
 interface Props {
   onComplete: (projectId: string) => void;
@@ -13,15 +15,60 @@ export function ImportNovel({ onComplete, onCancel }: Props) {
   const [step, setStep] = useState<"info" | "upload">("info");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [style, setStyle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<Partial<ChapterParseRule>>({});
+  const [showPresetPanel, setShowPresetPanel] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parser = useChapterParser();
-  const styleOptions = ["网文风", "严肃文学", "轻小说", "武侠", "科幻", "悬疑"];
+
+  const handleAddFromPreset = (preset: ChapterParseRule) => {
+    const newId = parser.addRule();
+    parser.updateRule(newId, {
+      name: preset.name,
+      pattern: preset.pattern,
+      example: preset.example,
+    });
+  };
+
+  const handleAddRule = () => {
+    const newId = parser.addRule();
+    const newRule = parser.rules.find((r) => r.id === newId);
+    if (newRule) {
+      setEditingRuleId(newId);
+      setEditingRule({ name: newRule.name, pattern: newRule.pattern, example: newRule.example });
+      setShowSettings(true);
+    }
+  };
+
+  const handleEditRule = (rule: ChapterParseRule) => {
+    setEditingRuleId(rule.id);
+    setEditingRule({ name: rule.name, pattern: rule.pattern, example: rule.example });
+  };
+
+  const handleSaveRule = () => {
+    if (editingRuleId && editingRule.name && editingRule.pattern) {
+      parser.updateRule(editingRuleId, {
+        name: editingRule.name,
+        pattern: editingRule.pattern,
+        example: editingRule.example || "",
+      });
+      setEditingRuleId(null);
+      setEditingRule({});
+    }
+  };
+
+  const handleDeleteRule = (id: string) => {
+    parser.deleteRule(id);
+    if (editingRuleId === id) {
+      setEditingRuleId(null);
+      setEditingRule({});
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -72,7 +119,6 @@ export function ImportNovel({ onComplete, onCancel }: Props) {
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
-          style: style.trim() || null,
         }),
       });
 
@@ -93,6 +139,7 @@ export function ImportNovel({ onComplete, onCancel }: Props) {
       });
 
       if (!chapterRes.ok) throw new Error("导入章节失败");
+
       onComplete(project.id);
     } catch (err: any) {
       parser.setError(err.message);
@@ -127,24 +174,6 @@ export function ImportNovel({ onComplete, onCancel }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="简短的简介"
             />
-            <div>
-              <label className="text-xs text-content-secondary mb-2 block">写作风格</label>
-              <div className="flex flex-wrap gap-2">
-                {styleOptions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStyle(s === style ? "" : s)}
-                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                      s === style
-                        ? "border-brand-600 bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400"
-                        : "border-border text-content-muted hover:border-content-muted"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="pt-2">
               <Button
                 onClick={() => {
@@ -162,31 +191,130 @@ export function ImportNovel({ onComplete, onCancel }: Props) {
         {step === "upload" && (
           <>
             {showSettings && (
-              <div className="px-6 py-4 border-b border-border bg-surface-muted">
-                <h3 className="text-sm font-medium text-content-primary mb-3">章节匹配规则</h3>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="px-6 py-4 border-b border-border bg-surface-muted max-h-[300px] overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-medium text-content-primary">章节匹配规则</h3>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowPresetPanel(!showPresetPanel)}
+                        className="flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        <Plus size={12} />
+                        从预设添加
+                        <ChevronDown size={12} />
+                      </button>
+                      {showPresetPanel && (
+                        <div className="absolute top-full left-0 mt-1 w-64 bg-surface-elevated border border-border rounded-lg shadow-lg z-10 max-h-[240px] overflow-y-auto">
+                          {PRESET_PARSE_RULES.map((preset) => (
+                            <button
+                              key={preset.id}
+                              onClick={() => {
+                                handleAddFromPreset(preset);
+                                setShowPresetPanel(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs text-content-secondary hover:bg-surface-hover hover:text-content-primary border-b border-border last:border-b-0"
+                            >
+                              <div className="font-medium text-content-primary">{preset.name}</div>
+                              <div className="text-[10px] text-content-muted font-mono truncate">{preset.pattern}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleAddRule}
+                    className="flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    <Plus size={12} />
+                    新建规则
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
                   {parser.rules.map((rule) => (
                     <div
                       key={rule.id}
-                      className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                      className={`p-2 rounded-lg border transition-colors ${
                         rule.enabled
                           ? "border-brand-600/50 bg-brand-50 dark:bg-brand-950"
                           : "border-border bg-surface-hover/50"
                       }`}
-                      onClick={() => parser.toggleRule(rule.id)}
                     >
-                      <div className="mt-0.5">
-                        {rule.enabled ? (
-                          <Check size={14} className="text-brand-600 dark:text-brand-400" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 border border-content-muted rounded" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs text-content-primary font-medium">{rule.name}</div>
-                        <div className="text-[10px] text-content-muted font-mono">{rule.pattern}</div>
-                        <div className="text-[10px] text-content-muted mt-0.5">例: {rule.example}</div>
-                      </div>
+                      {editingRuleId === rule.id ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-content-muted w-16">名称</span>
+                            <input
+                              value={editingRule.name || ""}
+                              onChange={(e) => setEditingRule((p) => ({ ...p, name: e.target.value }))}
+                              className="flex-1 bg-surface-base text-xs text-content-primary px-2 py-1 rounded border border-border focus:outline-none focus:border-brand-500"
+                              placeholder="规则名称"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-content-muted w-16">正则</span>
+                            <input
+                              value={editingRule.pattern || ""}
+                              onChange={(e) => setEditingRule((p) => ({ ...p, pattern: e.target.value }))}
+                              className="flex-1 bg-surface-base text-xs text-content-primary px-2 py-1 rounded border border-border focus:outline-none focus:border-brand-500 font-mono"
+                              placeholder="正则表达式"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-content-muted w-16">示例</span>
+                            <input
+                              value={editingRule.example || ""}
+                              onChange={(e) => setEditingRule((p) => ({ ...p, example: e.target.value }))}
+                              className="flex-1 bg-surface-base text-xs text-content-primary px-2 py-1 rounded border border-border focus:outline-none focus:border-brand-500"
+                              placeholder="匹配示例"
+                            />
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => setEditingRuleId(null)} className="text-xs text-content-muted hover:text-content-primary">
+                              取消
+                            </button>
+                            <button onClick={handleSaveRule} className="flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline">
+                              <Save size={12} />
+                              保存
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2">
+                          <button
+                            onClick={() => parser.toggleRule(rule.id)}
+                            className="mt-0.5 flex-shrink-0"
+                          >
+                            {rule.enabled ? (
+                              <Check size={14} className="text-brand-600 dark:text-brand-400" />
+                            ) : (
+                              <div className="w-3.5 h-3.5 border border-content-muted rounded" />
+                            )}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-content-primary font-medium">{rule.name}</div>
+                            <div className="text-[10px] text-content-muted font-mono truncate">{rule.pattern}</div>
+                            <div className="text-[10px] text-content-muted mt-0.5">例: {rule.example}</div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleEditRule(rule)}
+                              className="p-1 text-content-muted hover:text-content-primary"
+                              title="编辑规则"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRule(rule.id)}
+                              className="p-1 text-content-muted hover:text-red-400"
+                              title="删除规则"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

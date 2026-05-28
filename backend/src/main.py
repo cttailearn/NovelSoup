@@ -11,6 +11,9 @@ from .api import (
     characters_router,
     memories_router,
     skills_router,
+    ai_config_router,
+    prompts_router,
+    character_extract_router,
 )
 from .ws import websocket_handler
 
@@ -41,6 +44,9 @@ app.include_router(chapters_router, prefix="/api/v1")
 app.include_router(characters_router, prefix="/api/v1")
 app.include_router(memories_router, prefix="/api/v1")
 app.include_router(skills_router, prefix="/api/v1")
+app.include_router(ai_config_router, prefix="/api/v1")
+app.include_router(prompts_router, prefix="/api/v1")
+app.include_router(character_extract_router, prefix="/api/v1")
 
 
 @app.websocket("/ws/novel")

@@ -2,11 +2,13 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { Project, Chapter, AIInsertion } from "./types";
 import { ProjectList } from "./components/Project/ProjectList";
 import { NovelEditor } from "./components/Editor/NovelEditor";
+import { ReparseChapters } from "./components/Editor/ReparseChapters";
 import { ChatPanel } from "./components/Chat/ChatPanel";
 import { CharacterBoard } from "./components/CharacterBoard/CharacterBoard";
+import { AISettings } from "./components/Settings/AISettings";
 import { useNovelAgent } from "./hooks/useNovelAgent";
 import { useTheme } from "./hooks/useTheme";
-import { BookOpen, Users, PanelLeftClose, PanelLeft, Sun, Moon } from "lucide-react";
+import { BookOpen, Users, PanelLeftClose, PanelLeft, Sun, Moon, Settings } from "lucide-react";
 import { chaptersApi } from "./api/chapters";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
@@ -21,6 +23,8 @@ function App() {
   const [chatOpen, setChatOpen] = useState(true);
   const [pendingInsertion, setPendingInsertion] = useState<{ text: string; agentName: string } | null>(null);
   const [appliedInsertions, setAppliedInsertions] = useState<AIInsertion[]>([]);
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [showReparseModal, setShowReparseModal] = useState(false);
   const editorInsertFnRef = useRef<((text: string, agentName: string) => void) | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingContentRef = useRef<string | null>(null);
@@ -73,6 +77,13 @@ function App() {
     clearMessages();
     setPendingInsertion(null);
     setAppliedInsertions([]);
+  };
+
+  const handleReparseComplete = async (newChapters: Chapter[]) => {
+    setChapters(newChapters);
+    if (newChapters.length > 0) {
+      setActiveChapterId(newChapters[0].id);
+    }
   };
 
   const handleChapterSelect = (id: string) => {
@@ -218,7 +229,26 @@ function App() {
             {chatOpen ? <PanelLeftClose size={14} /> : <PanelLeft size={14} />}
             <span className="hidden sm:inline">AI</span>
           </button>
+          <button
+            onClick={() => setShowAISettings(true)}
+            className="flex-1 flex items-center justify-center gap-1 px-2 py-2 text-xs rounded-md transition-colors text-content-muted hover:text-content-primary hover:bg-surface-hover"
+            title="AI 设置"
+          >
+            <Settings size={14} />
+          </button>
         </div>
+
+        {chapters.length > 0 && (
+          <div className="border-t border-border p-2">
+            <button
+              onClick={() => setShowReparseModal(true)}
+              className="w-full flex items-center justify-center gap-1 px-3 py-2 text-xs rounded-md transition-colors bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900"
+            >
+              <Settings size={14} />
+              章节解析
+            </button>
+          </div>
+        )}
       </aside>
 
       {!sidebarOpen && (
@@ -269,6 +299,19 @@ function App() {
             onClearGenerated={handleClearGenerated}
           />
         </aside>
+      )}
+
+      {showAISettings && (
+        <AISettings onClose={() => setShowAISettings(false)} />
+      )}
+
+      {showReparseModal && project && (
+        <ReparseChapters
+          projectId={project.id}
+          chapters={chapters}
+          onClose={() => setShowReparseModal(false)}
+          onReparse={handleReparseComplete}
+        />
       )}
     </div>
   );
